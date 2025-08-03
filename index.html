@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>College Timetable</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body {
+      background: #f0f2f5;
+      color: #212529;
+      transition: background .3s, color .3s;
+    }
+
+    .dark-mode {
+      background: #121212 !important;
+      color: #f1f1f1 !important;
+    }
+
+    .dark-mode .navbar,
+    .dark-mode .sidebar,
+    .dark-mode .day-buttons,
+    .dark-mode .form-control,
+    .dark-mode .form-select,
+    .dark-mode .btn-outline-primary {
+      background-color: #1e1e2f !important;
+      color: #f1f1f1 !important;
+      border-color: #444 !important;
+    }
+
+    .dark-mode .btn-outline-primary:hover {
+      background-color: #0d6efd !important;
+      color: white !important;
+    }
+
+    .dark-mode .card {
+      background-color: #2c2c3c !important;
+      color: #fff !important;
+    }
+
+    .navbar {
+      background-color: #0d6efd !important;
+      padding-right: 1rem;
+    }
+
+    .theme-toggle {
+      border: none;
+      background: transparent;
+      color: #fff;
+      font-size: 1.3rem;
+    }
+
+    .sidebar {
+      background: #f8f9fa;
+      height: 100vh;
+      padding: 1.5rem;
+    }
+
+    .dark-mode .sidebar {
+      background: #1e1e2f !important;
+    }
+
+    .day-buttons {
+      display: flex;
+      gap: 8px;
+      padding: 1rem;
+      background: #fff;
+    }
+
+    .dark-mode .day-buttons {
+      background: #1e1e2f !important;
+    }
+
+    .day-buttons .btn {
+      flex: 1;
+    }
+
+    .day-buttons .active {
+      background: #0d6efd !important;
+      color: #fff !important;
+    }
+
+    .card {
+      border-left: 6px solid #0d6efd;
+      border-radius: 6px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.08);
+      transition: transform .15s;
+      padding: 0.75rem 1rem;
+    }
+
+    .card:hover {
+      transform: translateY(-3px);
+    }
+
+    .card.lab { border-left-color: #198754; }
+    .card.tutorial { border-left-color: #fd7e14; }
+
+    .form-select,
+    .form-control {
+      border-radius: 6px;
+      padding: .5rem;
+    }
+
+    .sidebar .form-label {
+      font-weight: 600;
+      margin-top: 1rem;
+    }
+
+    .card p {
+      margin-bottom: 4px;
+      font-size: 0.9rem;
+    }
+
+    .card h6 {
+      font-size: 1rem;
+      font-weight: 600;
+    }
+
+    .icon {
+      margin-right: 6px;
+    }
+
+    select:focus {
+      outline: none !important;
+      box-shadow: none !important;
+    }
+
+    footer {
+      padding: 1rem;
+      background-color: #f8f9fa;
+      color: #555;
+      font-weight: 500;
+    }
+
+    .dark-mode footer {
+      background-color: #1e1e2f;
+      color: #ccc;
+    }
+
+    .form-select option {
+      padding: 10px;
+    }
+
+    option:checked {
+      background-color: #0d6efd !important;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+
+<nav class="navbar navbar-dark d-flex justify-content-between align-items-center px-3">
+  <span class="navbar-brand mb-0 h1">College Timetable</span>
+  <button class="theme-toggle" onclick="toggleTheme()">🌗</button>
+</nav>
+
+<div class="d-flex">
+  <div class="sidebar col-md-3 col-lg-2">
+    <label class="form-label">Upload Excel (.xlsx):</label>
+    <input id="excelFile" type="file" accept=".xlsx" class="form-control">
+    <button class="btn btn-primary w-100 mt-2" onclick="displayTimetable()">Load Timetable</button>
+
+    <label class="form-label">BE Division</label>
+    <select id="beDropdown" class="form-select" onchange="clearOthers('beDropdown')"></select>
+
+    <label class="form-label">TE Division</label>
+    <select id="teDropdown" class="form-select" onchange="clearOthers('teDropdown')"></select>
+
+    <label class="form-label">SE Division</label>
+    <select id="seDropdown" class="form-select" onchange="clearOthers('seDropdown')"></select>
+  </div>
+
+  <div class="col-md-9 p-4">
+    <div class="day-buttons" id="dayButtons"></div>
+    <div id="cardsContainer" class="mt-4"></div>
+    <p class="text-muted mt-4">Ensure each sheet has columns: DAY, TYPE, NAME, BATCH, STARTS, ENDS, FACULTY, ROOM</p>
+  </div>
+</div>
+
+<footer class="text-start ps-4">© APSIT-CalSync</footer>
+
+<script>
+  let allData = {}, selectedDay = "Monday";
+
+  function renderDayButtons() {
+    const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    const container = document.getElementById("dayButtons");
+    container.innerHTML = "";
+    days.forEach(d => {
+      const btn = document.createElement("button");
+      btn.innerText = d;
+      btn.className = "btn btn-outline-primary" + (d === selectedDay ? " active" : "");
+      btn.onclick = () => {
+        selectedDay = d;
+        renderDayButtons();
+        displayTimetable();
+      };
+      container.appendChild(btn);
+    });
+  }
+  renderDayButtons();
+
+  document.getElementById("excelFile").onchange = e => {
+    const fr = new FileReader();
+    fr.onload = ev => {
+      const wb = XLSX.read(new Uint8Array(ev.target.result), { type: "array" });
+      allData = {};
+      ["beDropdown", "teDropdown", "seDropdown"].forEach(id => document.getElementById(id).innerHTML = "");
+      wb.SheetNames.forEach(name => {
+        allData[name] = XLSX.utils.sheet_to_json(wb.Sheets[name]);
+        const opt = new Option(name, name);
+        if (name.toLowerCase().startsWith("be")) document.getElementById("beDropdown").append(opt);
+        else if (name.toLowerCase().startsWith("te")) document.getElementById("teDropdown").append(opt);
+        else if (name.toLowerCase().startsWith("se")) document.getElementById("seDropdown").append(opt);
+      });
+    };
+    fr.readAsArrayBuffer(e.target.files[0]);
+  };
+
+  function clearOthers(selectedId) {
+    ["beDropdown", "teDropdown", "seDropdown"].forEach(id => {
+      if (id !== selectedId) document.getElementById(id).selectedIndex = -1;
+    });
+    displayTimetable();
+  }
+
+  function displayTimetable() {
+    const div = document.getElementById("beDropdown").value
+      || document.getElementById("teDropdown").value
+      || document.getElementById("seDropdown").value;
+    if (!div || !allData[div]) return;
+    const rows = allData[div].filter(r => r.DAY?.toLowerCase() === selectedDay.toLowerCase());
+    const cont = document.getElementById("cardsContainer");
+    cont.innerHTML = "";
+    if (!rows.length) {
+      cont.innerHTML = "<p>No classes this day.</p>";
+      return;
+    }
+    rows.forEach(r => {
+      const card = document.createElement("div");
+      const type = r.TYPE?.toLowerCase() || "lecture";
+      card.className = "card mb-3 " + type;
+      card.innerHTML = `
+        <h6><span class="icon">📘</span>${r.TYPE || ""} – ${r.NAME || ""}</h6>
+        <p><span class="icon">👥</span><strong>Batch:</strong> ${r.BATCH || ""}</p>
+        <p><span class="icon">🕐</span><strong>Time:</strong> ${formatTime(r.STARTS)} – ${formatTime(r.ENDS)}</p>
+        <p><span class="icon">🧑‍🏫</span><strong>Faculty:</strong> ${r.FACULTY || ""}</p>
+        <p><span class="icon">🏫</span><strong>Room:</strong> ${r.ROOM || ""}</p>
+      `;
+      cont.appendChild(card);
+    });
+  }
+
+  function formatTime(v) {
+    if (!v) return "";
+    if (typeof v === "number") {
+      const mins = Math.round(v * 24 * 60),
+            h = Math.floor(mins / 60),
+            m = mins % 60;
+      const ampm = h >= 12 ? "PM" : "AM",
+            hh = h % 12 || 12;
+      return `${hh}:${m.toString().padStart(2, "0")} ${ampm}`;
+    }
+    return v;
+  }
+
+  function toggleTheme() {
+    document.body.classList.toggle("dark-mode");
+  }
+</script>
+
+</body>
+</html>
