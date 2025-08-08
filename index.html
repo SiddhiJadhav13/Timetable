@@ -134,7 +134,7 @@
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             // --- CONFIGURATION ---
-            const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
             // --- STATE ---
             let allTimetableData = [];
@@ -414,18 +414,16 @@
                 showLoader(false);
             };
 
-            const searchInput = document.getElementById('search-input');
-
-searchInput.addEventListener('input', () => {
-    const query = searchInput.value.trim().toLowerCase();
-    const allCards = timetableGrid.querySelectorAll('.timetable-card');
-
+            document.getElementById("search-input").addEventListener("input", function() {
+    let searchValue = this.value.toLowerCase();
+    let allCards = document.querySelectorAll(".timetable-card"); // all cards from all years/divisions
+    
     allCards.forEach(card => {
-        const textContent = card.textContent.toLowerCase();
-        if (textContent.includes(query)) {
-            card.style.display = '';
+        let cardText = card.innerText.toLowerCase();
+        if (cardText.includes(searchValue)) {
+            card.style.display = "";
         } else {
-            card.style.display = 'none';
+            card.style.display = "none";
         }
     });
 });
@@ -434,6 +432,7 @@ searchInput.addEventListener('input', () => {
             // --- INITIAL LOAD ---
             setTheme(isDarkMode() ? 'dark' : 'light');
             showInitialWelcomeState();
+            
         });
     </script>
 </body>
